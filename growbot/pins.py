@@ -30,8 +30,21 @@ REG_GOAL_POS = 0x2A       # 2 bytes BE, 0-1023
 REG_EEPROM_LOCK = 0x30    # 1 byte: write 0 to unlock, 1 to lock
 REG_PRESENT_POS = 0x38    # 2 bytes BE, read-only
 
-# --- IMU (MPU-6050 family) over I2C — here for later kit growth ---
+# --- IMU (MPU-6050 family) over I2C ---
 IMU_I2C_ADDR = 0x68
+
+# --- LED ring (WS2812 / NeoPixel) — needs root (PWM/DMA) ---
+LED_PIN = 12          # GPIO12 = PWM0
+LED_COUNT = 7
+LED_BRIGHTNESS = 128  # 0-255
+LED_FREQ_HZ = 800_000
+LED_DMA = 10
+LED_CHANNEL = 0       # PWM0 -> channel 0 (GPIO12/18); use 1 for GPIO13/19
+
+# --- Audio (Google voiceHAT speaker + mic) ---
+# ALSA device; the CARD= form is robust to card renumbering across boots.
+AUDIO_DEVICE = "plughw:CARD=sndrpigooglevoi"
+HELLO_PHRASE = "hello, I'm GrowBot"
 
 # --- Body mapping ---
 # NOTE: which servo ID drives which leg depends on YOUR horn mounting, so this

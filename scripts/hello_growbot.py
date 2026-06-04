@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""GrowBot's first hello: prove the body is alive, gently.
+"""GrowBot's first hello — lights, voice, and legs together, gently.
 
-    scan the bus -> read each joint -> a small symmetric wave -> release
+Wakes its LED ring, says hello, and waves its legs. Every subsystem is optional:
+if the LED ring, speaker, or servos aren't present, that part is skipped and the
+rest still runs — so even a half-built robot says hi.
 
-No audio, no policies, no autonomy. Just "the hardware works." Keep GrowBot on
-a stand or hold it.
+LEDs need root, so for the full effect run:
+
+    sudo -E python3 scripts/hello_growbot.py
 """
 from __future__ import annotations
 
@@ -15,51 +18,84 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from growbot import pins  # noqa: E402
-from growbot.servos import ServoBus  # noqa: E402
+
+
+def open_leds():
+    try:
+        from growbot.leds import LedRing
+
+        return LedRing()
+    except Exception as exc:
+        print(f"  (lights skipped: {exc})")
+        return None
+
+
+def say_hello() -> bool:
+    try:
+        from growbot import audio
+
+        print(f"  speaking: {pins.HELLO_PHRASE!r}")
+        ok, info = audio.speak(pins.HELLO_PHRASE)
+        if not ok:
+            print(f"  (voice issue: {info})")
+        return ok
+    except Exception as exc:
+        print(f"  (voice skipped: {exc})")
+        return False
+
+
+def wave_legs() -> bool:
+    try:
+        from growbot.servos import ServoBus
+    except Exception as exc:
+        print(f"  (legs skipped: {exc})")
+        return False
+    try:
+        with ServoBus() as bus:
+            joints = [s for s in pins.SERVO_IDS if bus.ping(s)]
+            starts = {s: bus.present_position(s) for s in joints}
+            movable = [s for s in joints if starts[s] is not None]
+            if not movable:
+                print("  (legs skipped: no servos answering)")
+                return False
+            print(f"  waving {len(movable)} leg(s): {movable}")
+            try:
+                for sid in movable:
+                    bus.set_torque(sid, True)
+                for _ in range(2):
+                    for sid in movable:
+                        base = starts[sid]
+                        for delta in (pins.SAFE_NUDGE, -pins.SAFE_NUDGE, 0):
+                            bus.move(sid, base + delta)
+                            time.sleep(0.22)
+                for sid in movable:
+                    bus.move(sid, starts[sid])
+                time.sleep(0.3)
+            finally:
+                for sid in movable:
+                    bus.set_torque(sid, False)
+            return True
+    except Exception as exc:
+        print(f"  (legs skipped: {exc})")
+        return False
 
 
 def main() -> int:
-    print("hi, i'm growbot. checking my body...\n")
-    with ServoBus() as bus:
-        joints = [sid for sid in pins.SERVO_IDS if bus.ping(sid)]
-        if not joints:
-            print("...i can't feel my legs.")
-            print("run scripts/scan_servos.py — check power and that you're on /dev/serial0.")
-            return 1
+    print("hi, i'm growbot. waking up...\n")
 
-        print(f"i found {len(joints)} joint(s): {joints}")
-        starts = {sid: bus.present_position(sid) for sid in joints}
-        for sid, pos in starts.items():
-            print(f"  joint {sid} is at {pos}")
+    ring = open_leds()
+    if ring:
+        ring.fill((0, 120, 255))  # awake blue
 
-        # Only wave joints whose position we could actually read — never move
-        # blindly to a guessed anchor.
-        movable = [sid for sid in joints if starts[sid] is not None]
-        if not movable:
-            print("\n...i can feel my joints but can't read them — skipping the wave.")
-            return 1
+    spoke = say_hello()
+    waved = wave_legs()
 
-        try:
-            for sid in movable:
-                bus.set_torque(sid, True)
-            print("\nwaving hello...")
-            for _ in range(2):
-                for sid in movable:
-                    base = starts[sid]
-                    for d in (pins.SAFE_NUDGE, -pins.SAFE_NUDGE, 0):
-                        bus.move(sid, base + d)
-                        time.sleep(0.25)
-            for sid in movable:
-                bus.move(sid, starts[sid])
-            time.sleep(0.3)
-        except KeyboardInterrupt:
-            print("\ninterrupted — going limp")
-        finally:
-            # Always release torque on exit, even on error or Ctrl-C.
-            for sid in movable:
-                bus.set_torque(sid, False)
+    if ring:
+        ring.spin((0, 255, 120), rounds=1, delay=0.04)  # happy green
+        ring.off()
 
-    print("\nthat's me. nice to meet you.")
+    did = [name for name, ok in (("lights", bool(ring)), ("voice", spoke), ("legs", waved)) if ok]
+    print(f"\nthat's me — {', '.join(did) if did else 'quietly here'}. nice to meet you.")
     return 0
 
 
