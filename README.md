@@ -1,3 +1,6 @@
+> [!NOTE]
+> This code now lives in the main GrowBot repo: https://github.com/britcruise9/GrowBot-V0 (in the `setup/` folder). This repository is archived.
+
 # GrowBot V0 — Hardware Bringup Kit
 
 **SCS0009 / SC09 serial-bus servos store 2-byte values big-endian — for reads _and_ writes.**
